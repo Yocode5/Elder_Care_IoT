@@ -33,7 +33,6 @@ export default function Home() {
   const [spo2, setSpo2] = useState<number | null>(null);
   const [temp, setTemp] = useState<number | null>(null);
 
-  // 🔥 LIVE STATUS
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "devices", DEVICE_ID), (snap) => {
       const data = snap.data();
@@ -45,7 +44,6 @@ export default function Home() {
     return () => unsub();
   }, []);
 
-  // 🔥 FIREBASE TEMP HISTORY
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "devices", DEVICE_ID, "telemetry_history"),
@@ -66,7 +64,6 @@ export default function Home() {
     return () => unsub();
   }, []);
 
-  // 🔥 THINGSPEAK WITH REAL TIME
   useEffect(() => {
     const fetchThingSpeak = async () => {
       try {
@@ -83,10 +80,9 @@ export default function Home() {
 
         feeds.forEach((f: any) => {
           if (f.field1 && f.field2) {
-            bpmArr.push(parseInt(f.field1));
-            spo2Arr.push(parseFloat(f.field2));
+            spo2Arr.push(parseFloat(f.field1)); 
+            bpmArr.push(parseInt(f.field2));    
 
-            // 🔥 FORMAT TIME
             const date = new Date(f.created_at);
             const label = date.toLocaleTimeString([], {
               hour: "2-digit",
@@ -97,7 +93,6 @@ export default function Home() {
           }
         });
 
-        // ONLY LAST 4 (clean UI like Figma)
         const last4Bpm = bpmArr.slice(-4);
         const last4Spo2 = spo2Arr.slice(-4);
         const last4Times = times.slice(-4);
@@ -130,18 +125,6 @@ export default function Home() {
   return (
     <ScrollView style={styles.container}>
 
-      {/* HEALTH */}
-      <View style={styles.healthRow}>
-        <View style={styles.gradeCircle}>
-          <Text style={styles.gradeText}>A+</Text>
-        </View>
-        <View>
-          <Text style={styles.gradeTitle}>Health Grade</Text>
-          <Text style={styles.gradeStatus}>Good</Text>
-        </View>
-      </View>
-
-      {/* ACTIVITY */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>24 Hour Activity</Text>
 
@@ -157,7 +140,6 @@ export default function Home() {
         </View>
       </View>
 
-      {/* CHARTS */}
       <Text style={styles.sectionTitle}>Health Metrics</Text>
 
       {renderChart("Heart Rate", bpmHistory, bpm, timeLabels, "#EF4444")}
@@ -168,7 +150,6 @@ export default function Home() {
   );
 }
 
-// 🔥 REUSABLE CHART
 function renderChart(
   title: string,
   dataArr: number[],
@@ -176,6 +157,11 @@ function renderChart(
   labels: string[],
   color: string
 ) {
+
+  const formattedLatest = latest != null 
+    ? Number(latest).toFixed(title === "Heart Rate" ? 0 : 1) 
+    : "--";
+
   return (
     <View style={styles.chartCard}>
       <Text style={styles.metricTitle}>{title}</Text>
@@ -183,9 +169,10 @@ function renderChart(
       <LineChart
         data={{
           labels: labels.length ? labels : ["--", "--", "--", "--"],
-          datasets: [{ data: dataArr.length ? dataArr : [0,0,0,0] }],
+          datasets: [{ data: dataArr.length ? dataArr : [0]}],
         }}
-        width={Dimensions.get("window").width - 40}
+
+        width={Dimensions.get("window").width - 70} 
         height={180}
         chartConfig={{
           backgroundGradientFrom: "#fff",
@@ -201,11 +188,10 @@ function renderChart(
         style={{ borderRadius: 16 }}
       />
 
-      {/* FLOATING VALUE */}
       <View style={styles.floatingBox}>
         <Text style={styles.timeText}>{labels[labels.length - 1]}</Text>
         <Text style={{ color, fontWeight: "bold" }}>
-          {latest || "--"}
+          {formattedLatest}
         </Text>
       </View>
     </View>
@@ -240,9 +226,9 @@ const styles = StyleSheet.create({
   chartCard: {
     backgroundColor: "#fff",
     borderRadius: 20,
-    padding: 15,
-    marginBottom: 20,
-    elevation: 3,
+    padding:15,
+    marginBottom: 40,
+    elevation: 0,
   },
 
   metricTitle: {
