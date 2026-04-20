@@ -3,15 +3,15 @@ import { useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth } from "../config/firebase";
 
@@ -29,7 +29,10 @@ export default function Login() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.replace("/(tabs)/home");
+
+      // ✅ ONLY IMPORTANT FIX (already correct)
+      router.replace("/(tabs)");
+
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred. Please try again.";
 
