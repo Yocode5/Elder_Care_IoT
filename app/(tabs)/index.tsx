@@ -68,16 +68,7 @@ export default function Home() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.userInfo}>
-            <Ionicons name="person-outline" size={24} color="#1A1A1A" />
-            <Text style={styles.greeting}>Hello, {firstName}!</Text>
-          </View>
-
-          <TouchableOpacity onPress={confirmSignOut}>
-            <Feather name="log-in" size={24} color="#666666" />
-          </TouchableOpacity>
-        </View>
+        
 
         <View style={styles.content}>
           <Text style={styles.title}>ElderCare Dashboard 🩺</Text>
@@ -102,23 +93,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 25,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 20,
-    marginTop: 10,
-  },
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  greeting: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1A1A1A",
-    marginLeft: 10,
   },
   content: {
     flex: 1,
