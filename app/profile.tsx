@@ -75,7 +75,7 @@ export default function Profile() {
         profileCompleted: true,
       });
       Alert.alert("Success", "Health profile created!");
-      router.replace("/(tabs)/home");
+      router.replace("/(tabs)");
     } catch (error: any) {
       Alert.alert("Error", error.message);
     } finally {
@@ -99,7 +99,7 @@ export default function Profile() {
       <View style={styles.tealBackground} />
 
       <View style={styles.navBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.navigate("/(tabs)/home")}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.navigate("/(tabs)")}>
           <Ionicons name="chevron-back" size={24} color="#57B9AB" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
