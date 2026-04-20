@@ -129,13 +129,12 @@ export default function Home() {
         <Text style={styles.sectionTitle}>24 Hour Activity</Text>
 
         <View style={styles.row}>
-          <Text style={styles.now}>Now: {activity}</Text>
-
+          
           <View style={[
             styles.status,
             { backgroundColor: status === "STABLE" ? "#21B3A6" : "#EF4444" }
           ]}>
-            <Text style={styles.statusText}>{status}</Text>
+            <Text style={styles.statusText}>Live status: {status}</Text>
           </View>
         </View>
       </View>
