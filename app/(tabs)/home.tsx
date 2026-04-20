@@ -69,11 +69,13 @@ export default function Home() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.userInfo}>
-            <Ionicons name="person-outline" size={24} color="#1A1A1A" />
-            <Text style={styles.greeting}>Hello, {firstName}!</Text>
-          </View>
-
+         <TouchableOpacity 
+  style={styles.userInfo} 
+  onPress={() => router.push("/profile")}
+>
+  <Ionicons name="person-outline" size={24} color="#1A1A1A" />
+  <Text style={styles.greeting}>Hello, {firstName}!</Text>
+</TouchableOpacity>
           <TouchableOpacity onPress={confirmSignOut}>
             <Feather name="log-in" size={24} color="#666666" />
           </TouchableOpacity>
