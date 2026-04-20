@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { FallCard } from "../../components/FallDetectCard";
+import EmergencyPopup from "../../components/EmergencyPopup";
 
 export default function FallHistoryPage() {
   return (
@@ -23,6 +24,13 @@ export default function FallHistoryPage() {
         <FallCard status="emergency" gForce="1.20" time="17/04/2026" />
         <FallCard status="false" gForce="0.40" time="15/04/2026" />
       </ScrollView>
+      <EmergencyPopup
+        visible={true}
+        gForce={1.20}
+        bpm={72}
+        onEmergency={() => {}}
+        onFalseAlarm={() => {}}
+      />
     </View>
   );
 }
@@ -31,7 +39,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     backgroundColor: "#F9FAFB",
-    marginTop: 86,
+    marginTop: 16,
     paddingTop: 25,
   },
 
