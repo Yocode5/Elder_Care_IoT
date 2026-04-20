@@ -48,7 +48,7 @@ export const FallCard = ({
               highlighted ? styles.badgeHighlighted : styles.badgeNormal,
             ]}
           >
-            <Text style={{ fontSize: 16 }}>Bell</Text>
+            <Text style={{ fontSize: 16 }}>🔔</Text>
           </View>
 
           <Text
