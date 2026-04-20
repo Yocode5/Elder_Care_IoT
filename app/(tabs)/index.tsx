@@ -1,122 +1,279 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Platform,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Dimensions,
 } from "react-native";
-import { auth, db } from "../../config/firebase";
+import {
+  doc,
+  onSnapshot,
+  collection,
+} from "firebase/firestore";
+import { db } from "../../config/firebase";
+import { LineChart } from "react-native-chart-kit";
+
+const DEVICE_ID = "7MOLDH3H3";
 
 export default function Home() {
-  const router = useRouter();
-  const [firstName, setFirstName] = useState("User");
+  const [loading, setLoading] = useState(true);
 
+  const [activity, setActivity] = useState("...");
+  const [status, setStatus] = useState("...");
+
+  const [bpmHistory, setBpmHistory] = useState<number[]>([]);
+  const [spo2History, setSpo2History] = useState<number[]>([]);
+  const [tempHistory, setTempHistory] = useState<number[]>([]);
+
+  const [timeLabels, setTimeLabels] = useState<string[]>([]);
+
+  const [bpm, setBpm] = useState<number | null>(null);
+  const [spo2, setSpo2] = useState<number | null>(null);
+  const [temp, setTemp] = useState<number | null>(null);
+
+  // 🔥 LIVE STATUS
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
+    const unsub = onSnapshot(doc(db, "devices", DEVICE_ID), (snap) => {
+      const data = snap.data();
+      if (data?.live_status) {
+        setActivity(data.live_status.activity || "Resting");
+        setStatus(data.live_status.currentSituation || "STABLE");
+      }
+    });
+    return () => unsub();
+  }, []);
 
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            if (userData.firstName) {
-              setFirstName(userData.firstName);
-            }
+  // 🔥 FIREBASE TEMP HISTORY
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "devices", DEVICE_ID, "telemetry_history"),
+      (snap) => {
+        const temps: number[] = [];
+
+        snap.forEach(doc => {
+          const d = doc.data();
+          if (d.temperatureF) temps.push(d.temperatureF);
+        });
+
+        setTempHistory(temps.slice(-10));
+        setTemp(temps[temps.length - 1] || null);
+
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  // 🔥 THINGSPEAK WITH REAL TIME
+  useEffect(() => {
+    const fetchThingSpeak = async () => {
+      try {
+        const res = await fetch(
+          "https://api.thingspeak.com/channels/3345010/feeds.json?api_key=8OV234029QOP448E&results=10"
+        );
+
+        const data = await res.json();
+        const feeds = data.feeds;
+
+        const bpmArr: number[] = [];
+        const spo2Arr: number[] = [];
+        const times: string[] = [];
+
+        feeds.forEach((f: any) => {
+          if (f.field1 && f.field2) {
+            bpmArr.push(parseInt(f.field1));
+            spo2Arr.push(parseFloat(f.field2));
+
+            // 🔥 FORMAT TIME
+            const date = new Date(f.created_at);
+            const label = date.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            times.push(label);
           }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-        }
+        });
+
+        // ONLY LAST 4 (clean UI like Figma)
+        const last4Bpm = bpmArr.slice(-4);
+        const last4Spo2 = spo2Arr.slice(-4);
+        const last4Times = times.slice(-4);
+
+        setBpmHistory(last4Bpm);
+        setSpo2History(last4Spo2);
+        setTimeLabels(last4Times);
+
+        setBpm(last4Bpm[last4Bpm.length - 1]);
+        setSpo2(last4Spo2[last4Spo2.length - 1]);
+
+      } catch (err) {
+        console.log(err);
       }
     };
 
-    fetchUserData();
+    fetchThingSpeak();
+    const interval = setInterval(fetchThingSpeak, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const confirmSignOut = () => {
-    Alert.alert("Log Out", "Are you sure you want to log out of ElderCare?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Log Out",
-        onPress: handleSignOut,
-        style: "destructive",
-      },
-    ]);
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      router.replace("/login");
-    } catch (error: any) {
-      Alert.alert("Error signing out", error.message);
-    }
-  };
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#21B3A6" />
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        
+    <ScrollView style={styles.container}>
 
-        <View style={styles.content}>
-          <Text style={styles.title}>ElderCare Dashboard 🩺</Text>
-          <View style={styles.card}>
-            <Text style={styles.cardText}>
-              This is your temporary home space. Eventually, this will hold the
-              Health Grade, 24 Hour Activity pie chart, and real-time metrics!
-            </Text>
+      {/* HEALTH */}
+      <View style={styles.healthRow}>
+        <View style={styles.gradeCircle}>
+          <Text style={styles.gradeText}>A+</Text>
+        </View>
+        <View>
+          <Text style={styles.gradeTitle}>Health Grade</Text>
+          <Text style={styles.gradeStatus}>Good</Text>
+        </View>
+      </View>
+
+      {/* ACTIVITY */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>24 Hour Activity</Text>
+
+        <View style={styles.row}>
+          <Text style={styles.now}>Now: {activity}</Text>
+
+          <View style={[
+            styles.status,
+            { backgroundColor: status === "STABLE" ? "#21B3A6" : "#EF4444" }
+          ]}>
+            <Text style={styles.statusText}>{status}</Text>
           </View>
         </View>
       </View>
-    </SafeAreaView>
+
+      {/* CHARTS */}
+      <Text style={styles.sectionTitle}>Health Metrics</Text>
+
+      {renderChart("Heart Rate", bpmHistory, bpm, timeLabels, "#EF4444")}
+      {renderChart("Oxygen", spo2History, spo2, timeLabels, "#8B5CF6")}
+      {renderChart("Temperature", tempHistory.slice(-4), temp, timeLabels, "#3B82F6")}
+
+    </ScrollView>
+  );
+}
+
+// 🔥 REUSABLE CHART
+function renderChart(
+  title: string,
+  dataArr: number[],
+  latest: any,
+  labels: string[],
+  color: string
+) {
+  return (
+    <View style={styles.chartCard}>
+      <Text style={styles.metricTitle}>{title}</Text>
+
+      <LineChart
+        data={{
+          labels: labels.length ? labels : ["--", "--", "--", "--"],
+          datasets: [{ data: dataArr.length ? dataArr : [0,0,0,0] }],
+        }}
+        width={Dimensions.get("window").width - 40}
+        height={180}
+        chartConfig={{
+          backgroundGradientFrom: "#fff",
+          backgroundGradientTo: "#fff",
+          color: () => color,
+          strokeWidth: 3,
+          decimalPlaces: 1,
+        }}
+        bezier
+        withDots={true}
+        withInnerLines={false}
+        withOuterLines={false}
+        style={{ borderRadius: 16 }}
+      />
+
+      {/* FLOATING VALUE */}
+      <View style={styles.floatingBox}>
+        <Text style={styles.timeText}>{labels[labels.length - 1]}</Text>
+        <Text style={{ color, fontWeight: "bold" }}>
+          {latest || "--"}
+        </Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 25,
-  },
-  content: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: "#F5F7FA", padding: 20 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  healthRow: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  gradeCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#21B3A6",
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 15,
   },
-  title: {
-    color: "#1A1A1A",
-    fontSize: 22,
-    fontWeight: "bold",
+  gradeText: { color: "#fff", fontWeight: "bold", fontSize: 20 },
+
+  card: { backgroundColor: "#fff", padding: 15, borderRadius: 16, marginBottom: 20 },
+  row: { flexDirection: "row", justifyContent: "space-between" },
+
+  now: { backgroundColor: "#3B82F6", color: "#fff", padding: 6, borderRadius: 10 },
+  status: { padding: 6, borderRadius: 10 },
+  statusText: { color: "#fff", fontWeight: "bold" },
+
+  sectionTitle: { fontWeight: "bold", marginBottom: 10 },
+
+  chartCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 15,
     marginBottom: 20,
+    elevation: 3,
   },
-  card: {
-    backgroundColor: "#F8F9FA",
-    borderColor: "#E0E0E0",
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 25,
-    width: "100%",
+
+  metricTitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 10,
   },
-  cardText: {
-    color: "#666666",
-    fontSize: 15,
-    lineHeight: 24,
-    textAlign: "center",
+
+  floatingBox: {
+    position: "absolute",
+    right: 20,
+    top: 60,
+    backgroundColor: "#fff",
+    padding: 8,
+    borderRadius: 10,
+    elevation: 4,
+  },
+
+  timeText: {
+    fontSize: 10,
+    color: "#9CA3AF",
+  },
+  
+  gradeTitle: {
+    fontWeight: "600",
+    fontSize: 16,
+  },
+
+  gradeStatus: {
+    color: "#21B3A6",
+    fontWeight: "bold",
+    fontSize: 14,
   },
 });
