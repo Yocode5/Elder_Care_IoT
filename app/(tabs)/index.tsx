@@ -12,13 +12,17 @@ import {
   onSnapshot,
   collection,
 } from "firebase/firestore";
-import { db } from "../../config/firebase";
+import { db, auth } from "../../config/firebase"; 
 import { LineChart } from "react-native-chart-kit";
-
-const DEVICE_ID = "7MOLDH3H3";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
+  
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+
+  // States to hold the dynamic ThingSpeak credentials
+  const [tsChannelId, setTsChannelId] = useState<string | null>(null);
+  const [tsApiKey, setTsApiKey] = useState<string | null>(null);
 
   const [activity, setActivity] = useState("...");
   const [status, setStatus] = useState("...");
@@ -34,19 +38,44 @@ export default function Home() {
   const [temp, setTemp] = useState<number | null>(null);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "devices", DEVICE_ID), (snap) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userRef = doc(db, "users", user.uid);
+    const unsub = onSnapshot(userRef, (snap) => {
+      const data = snap.data();
+      if (data?.deviceId) {
+        setDeviceId(data.deviceId);
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const unsub = onSnapshot(doc(db, "devices", deviceId), (snap) => {
       const data = snap.data();
       if (data?.live_status) {
         setActivity(data.live_status.activity || "Resting");
         setStatus(data.live_status.currentSituation || "STABLE");
       }
+
+      // Grab keys dynamically from the root of the document
+      if (data?.thingspeakChannelId && data?.thingspeakApiKey) {
+        setTsChannelId(data.thingspeakChannelId);
+        setTsApiKey(data.thingspeakApiKey);
+      }
     });
     return () => unsub();
-  }, []);
+  }, [deviceId]);
 
   useEffect(() => {
+    if (!deviceId) return; 
+
     const unsub = onSnapshot(
-      collection(db, "devices", DEVICE_ID, "telemetry_history"),
+      collection(db, "devices", deviceId, "telemetry_history"),
       (snap) => {
         const temps: number[] = [];
 
@@ -58,18 +87,21 @@ export default function Home() {
         setTempHistory(temps.slice(-10));
         setTemp(temps[temps.length - 1] || null);
 
-        setLoading(false);
+        setLoading(false); 
       }
     );
     return () => unsub();
-  }, []);
+  }, [deviceId]);
 
   useEffect(() => {
+    // Only run fetch if we successfully loaded the keys from Firestore
+    if (!tsChannelId || !tsApiKey) return;
+
     const fetchThingSpeak = async () => {
       try {
-        const res = await fetch(
-          "https://api.thingspeak.com/channels/3345010/feeds.json?api_key=8OV234029QOP448E&results=10"
-        );
+        // Dynamic URL injected with keys
+        const url = `https://api.thingspeak.com/channels/${tsChannelId}/feeds.json?api_key=${tsApiKey}&results=10`;
+        const res = await fetch(url);
 
         const data = await res.json();
         const feeds = data.feeds;
@@ -105,18 +137,19 @@ export default function Home() {
         setSpo2(last4Spo2[last4Spo2.length - 1]);
 
       } catch (err) {
-        console.log(err);
+        console.log("ThingSpeak Error: ", err);
       }
     };
 
     fetchThingSpeak();
-    const interval = setInterval(fetchThingSpeak, 5000);
+    const interval = setInterval(fetchThingSpeak, 20000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [tsChannelId, tsApiKey]); // Re-run if keys change
 
-  if (loading) {
+  if (loading || !deviceId) {
     return (
       <View style={styles.center}>
+        <Text style={{ marginBottom: 10, color: "#6B7280" }}>Connecting to device...</Text>
         <ActivityIndicator size="large" color="#21B3A6" />
       </View>
     );
@@ -129,7 +162,6 @@ export default function Home() {
         <Text style={styles.sectionTitle}>24 Hour Activity</Text>
 
         <View style={styles.row}>
-          
           <View style={[
             styles.status,
             { backgroundColor: status === "STABLE" ? "#21B3A6" : "#EF4444" }
@@ -170,7 +202,6 @@ function renderChart(
           labels: labels.length ? labels : ["--", "--", "--", "--"],
           datasets: [{ data: dataArr.length ? dataArr : [0]}],
         }}
-
         width={Dimensions.get("window").width - 70} 
         height={180}
         chartConfig={{
@@ -199,7 +230,7 @@ function renderChart(
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F5F7FA", padding: 20 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F5F7FA" },
 
   healthRow: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
   gradeCircle: {

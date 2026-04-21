@@ -40,7 +40,7 @@ const EmergencyPopup: React.FC<Props> = ({
           <Text style={styles.title}>Wearer Unresponsive</Text>
 
           <Text style={styles.info}>
-            The wearer hasn't responded to the reassuring buzzer; assuming critical.
+            The wearer has not responded to the reassuring buzzer; assuming critical.
           </Text>
 
           {/* Metric Cards Section */}

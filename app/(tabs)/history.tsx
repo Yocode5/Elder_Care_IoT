@@ -18,8 +18,13 @@ export default function FallHistoryPage() {
   const [liveStatus, setLiveStatus] = useState("STABLE");
   const [incidents, setIncidents] = useState<any[]>([]);
   const [latestIncident, setLatestIncident] = useState<any>(null);
+  
+  // States to hold the dynamic ThingSpeak credentials
+  const [tsChannelId, setTsChannelId] = useState<string | null>(null);
+  const [tsApiKey, setTsApiKey] = useState<string | null>(null);
 
-  // 🔵 STEP 1: Get deviceId from user
+  const [liveBpm, setLiveBpm] = useState<number>(0);
+
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -34,7 +39,6 @@ export default function FallHistoryPage() {
     });
   }, []);
 
-  // 🔴 STEP 2: Listen to live status
   useEffect(() => {
     if (!deviceId) return;
 
@@ -46,10 +50,15 @@ export default function FallHistoryPage() {
         data?.live_status?.currentSituation?.toUpperCase() || "STABLE";
 
       setLiveStatus(status);
+
+      // Grab keys dynamically from the root of the document
+      if (data?.thingspeakChannelId && data?.thingspeakApiKey) {
+        setTsChannelId(data.thingspeakChannelId);
+        setTsApiKey(data.thingspeakApiKey);
+      }
     });
   }, [deviceId]);
 
-  // 🟡 STEP 3: Listen to incidents
   useEffect(() => {
     if (!deviceId) return;
 
@@ -61,11 +70,38 @@ export default function FallHistoryPage() {
     return onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map((doc) => doc.data());
       setIncidents(list);
-      setLatestIncident(list[0]);
+      setLatestIncident(list); // Fixed: grabbing the first item for latest
     });
   }, [deviceId]);
 
-  // 🔥 Send command to ESP32
+  useEffect(() => {
+    // Only run fetch if we successfully loaded the keys from Firestore
+    if (!tsChannelId || !tsApiKey) return;
+
+    const fetchThingSpeak = async () => {
+      try {
+        // Dynamic URL injected with keys
+        const url = `https://api.thingspeak.com/channels/${tsChannelId}/feeds.json?api_key=${tsApiKey}&results=1`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const feeds = data.feeds;
+
+        if (feeds && feeds.length > 0) {
+          const latestFeed = feeds[feeds.length - 1];
+          if (latestFeed.field2) {
+            setLiveBpm(parseInt(latestFeed.field2));
+          }
+        }
+      } catch (err) {
+        console.log("ThingSpeak Error on History Page: ", err);
+      }
+    };
+
+    fetchThingSpeak();
+    const interval = setInterval(fetchThingSpeak, 20000); 
+    return () => clearInterval(interval);
+  }, [tsChannelId, tsApiKey]); // Re-run if keys change
+
   const sendAction = async (action: string) => {
     if (!deviceId) return;
 
@@ -74,7 +110,6 @@ export default function FallHistoryPage() {
     });
   };
 
-  // 🧠 Map status → UI
   const getStatusType = () => {
     if (liveStatus === "PENDING_RESPONSE") return "waiting";
     if (liveStatus === "UNRESPONSIVE") return "emergency";
@@ -83,7 +118,6 @@ export default function FallHistoryPage() {
 
   const showPopup = liveStatus === "UNRESPONSIVE";
 
-  // 🟡 Loading fallback
   if (!deviceId) {
     return (
       <View style={styles.center}>
@@ -99,7 +133,6 @@ export default function FallHistoryPage() {
 
         <Text style={styles.section}>Current Situation</Text>
 
-        {/* 🟢 CURRENT INCIDENT */}
         {liveStatus === "STABLE" ? (
           <Text>No Active Incidents</Text>
         ) : (
@@ -113,7 +146,6 @@ export default function FallHistoryPage() {
 
         <Text style={styles.section}>Recent History</Text>
 
-        {/* 🟡 HISTORY */}
         {incidents.map((item, index) => (
           <FallCard
             key={index}
@@ -124,11 +156,10 @@ export default function FallHistoryPage() {
         ))}
       </ScrollView>
 
-      {/* 🔴 POPUP */}
       <EmergencyPopup
         visible={showPopup}
         gForce={latestIncident?.peakG || 0}
-        bpm={76} // later connect real BPM
+        bpm={liveBpm} 
         onEmergency={() => sendAction("EMERGENCY_CONFIRMED")}
         onFalseAlarm={() => sendAction("FALSE_ALARM")}
       />
@@ -136,7 +167,6 @@ export default function FallHistoryPage() {
   );
 }
 
-// 🔧 Helpers
 const mapHistoryStatus = (status: string) => {
   if (status === "RESOLVED") return "resolved";
   if (status === "EMERGENCY") return "emergency";
@@ -146,14 +176,9 @@ const mapHistoryStatus = (status: string) => {
 
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "-";
-
-  // If using millis
   return new Date(timestamp).toLocaleDateString();
-
-  // Later: Firestore Timestamp → timestamp.toDate()
 };
 
-// 🎨 Styles
 const styles = StyleSheet.create({
   container: {
     padding: 16,
@@ -177,7 +202,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   center: {
-    flex: 1,
+    flex: 2,
     justifyContent: "center",
     alignItems: "center",
   },
