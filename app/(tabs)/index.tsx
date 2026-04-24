@@ -11,10 +11,12 @@ import {
   doc,
   onSnapshot,
   collection,
+  setDoc,
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebase"; 
 import { LineChart } from "react-native-chart-kit";
 import { query, orderBy } from "firebase/firestore";
+import EmergencyPopup from "@/components/EmergencyPopup";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,7 @@ export default function Home() {
 
   const [activity, setActivity] = useState("...");
   const [status, setStatus] = useState("...");
+  const [liveData, setLiveData] = useState<any>(null);
 
   const [bpmHistory, setBpmHistory] = useState<number[]>([]);
   const [spo2History, setSpo2History] = useState<number[]>([]);
@@ -62,6 +65,8 @@ export default function Home() {
       if (data?.live_status) {
         setActivity(data.live_status.activity || "Resting");
         setStatus(data.live_status.currentSituation || "STABLE");
+
+        setLiveData(data.live_status)
       }
 
       // Grab keys dynamically from the root of the document
@@ -165,6 +170,16 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [tsChannelId, tsApiKey]); // Re-run if keys change
 
+  const sendAction = async (action: string) => {
+    if (!deviceId) return;
+
+    await setDoc(doc(db, "devices", deviceId, "commands", "action"), {
+      action,
+    });
+  };
+
+  const showPopup = status === "UNRESPONSIVE";
+
   if (loading || !deviceId) {
     return (
       <View style={styles.center}>
@@ -175,28 +190,30 @@ export default function Home() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <>
+      <ScrollView style={styles.container}>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>24 Hour Activity</Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>24 Hour Activity</Text>
 
-        <View style={styles.row}>
-          <View style={[
-            styles.status,
-            { backgroundColor: status === "STABLE" ? "#21B3A6" : "#EF4444" }
-          ]}>
-            <Text style={styles.statusText}>Live status: {status}</Text>
+          <View style={styles.row}>
+            <View style={[
+              styles.status,
+              { backgroundColor: status === "STABLE" ? "#21B3A6" : "#EF4444" }
+            ]}>
+              <Text style={styles.statusText}>Live status: {status}</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <Text style={styles.sectionTitle}>Health Metrics</Text>
+        <Text style={styles.sectionTitle}>Health Metrics</Text>
 
-      {renderChart("Heart Rate", bpmHistory, bpm, timeLabels, "#EF4444")}
-      {renderChart("Oxygen", spo2History, spo2, timeLabels, "#8B5CF6")}
-      {renderChart("Temperature", tempHistory.slice(0, 4), temp, tempLabels.slice(0, 4), "#3B82F6")}
+        {renderChart("Heart Rate", bpmHistory, bpm, timeLabels, "#EF4444")}
+        {renderChart("Oxygen", spo2History, spo2, timeLabels, "#8B5CF6")}
+        {renderChart("Temperature", tempHistory.slice(0, 4), temp, tempLabels.slice(0, 4), "#3B82F6")}
 
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
