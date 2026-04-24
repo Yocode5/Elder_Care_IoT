@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebase"; 
 import { LineChart } from "react-native-chart-kit";
+import { query, orderBy } from "firebase/firestore";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export default function Home() {
   const [tempHistory, setTempHistory] = useState<number[]>([]);
 
   const [timeLabels, setTimeLabels] = useState<string[]>([]);
+  const [tempLabels, setTempLabels] = useState<string[]>([]);
 
   const [bpm, setBpm] = useState<number | null>(null);
   const [spo2, setSpo2] = useState<number | null>(null);
@@ -72,24 +74,41 @@ export default function Home() {
   }, [deviceId]);
 
   useEffect(() => {
-    if (!deviceId) return; 
+    if (!deviceId) return;
 
-    const unsub = onSnapshot(
+    const q = query(
       collection(db, "devices", deviceId, "telemetry_history"),
-      (snap) => {
-        const temps: number[] = [];
-
-        snap.forEach(doc => {
-          const d = doc.data();
-          if (d.temperatureF) temps.push(d.temperatureF);
-        });
-
-        setTempHistory(temps.slice(-10));
-        setTemp(temps[temps.length - 1] || null);
-
-        setLoading(false); 
-      }
+      orderBy("timestamp", "desc")
     );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const temps: number[] = [];
+      const labels: string[] = [];
+
+      snap.forEach(doc => {
+        const d = doc.data();
+
+        if (d.temperatureF !== undefined) {
+          temps.push(d.temperatureF);
+
+          if (d.timestamp) {
+            const date = new Date(d.timestamp);
+            const label = date.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            labels.push(label);
+          }
+        }
+      });
+
+      setTempHistory(temps.slice(0, 10));
+      setTempLabels(labels.slice(0, 10));
+      setTemp(temps[0] || null);
+
+      setLoading(false);
+    });
+
     return () => unsub();
   }, [deviceId]);
 
@@ -175,7 +194,7 @@ export default function Home() {
 
       {renderChart("Heart Rate", bpmHistory, bpm, timeLabels, "#EF4444")}
       {renderChart("Oxygen", spo2History, spo2, timeLabels, "#8B5CF6")}
-      {renderChart("Temperature", tempHistory.slice(-4), temp, timeLabels, "#3B82F6")}
+      {renderChart("Temperature", tempHistory.slice(0, 4), temp, tempLabels.slice(0, 4), "#3B82F6")}
 
     </ScrollView>
   );
