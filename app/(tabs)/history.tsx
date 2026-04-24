@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 
 export default function FallHistoryPage() {
+  const [liveData, setLiveData] = useState<any>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState("STABLE");
   const [incidents, setIncidents] = useState<any[]>([]);
@@ -50,6 +51,7 @@ export default function FallHistoryPage() {
         data?.live_status?.currentSituation?.toUpperCase() || "STABLE";
 
       setLiveStatus(status);
+      setLiveData(data?.live_status);
 
       // Grab keys dynamically from the root of the document
       if (data?.thingspeakChannelId && data?.thingspeakApiKey) {
@@ -70,7 +72,7 @@ export default function FallHistoryPage() {
     return onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map((doc) => doc.data());
       setIncidents(list);
-      setLatestIncident(list); // Fixed: grabbing the first item for latest
+      setLatestIncident(list[0] || null); // grabbing the first item for latest
     });
   }, [deviceId]);
 
@@ -105,7 +107,7 @@ export default function FallHistoryPage() {
   const sendAction = async (action: string) => {
     if (!deviceId) return;
 
-    await setDoc(doc(db, "devices", deviceId, "commands"), {
+    await setDoc(doc(db, "devices", deviceId, "commands", "action"), {
       action,
     });
   };
@@ -138,8 +140,8 @@ export default function FallHistoryPage() {
         ) : (
           <FallCard
             status={getStatusType() as any}
-            gForce={latestIncident?.peakG || "-"}
-            time={formatDate(latestIncident?.timestamp)}
+            gForce={liveData?.peakG || "-"}
+            time={formatDate(liveData?.timestamp)}
             highlighted
           />
         )}
@@ -158,7 +160,7 @@ export default function FallHistoryPage() {
 
       <EmergencyPopup
         visible={showPopup}
-        gForce={latestIncident?.peakG || 0}
+        gForce={liveData?.peakG || 0}
         bpm={liveBpm} 
         onEmergency={() => sendAction("EMERGENCY_CONFIRMED")}
         onFalseAlarm={() => sendAction("FALSE_ALARM")}
@@ -176,7 +178,7 @@ const mapHistoryStatus = (status: string) => {
 
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "-";
-  return new Date(timestamp).toLocaleDateString();
+  return new Date(timestamp).toLocaleString();
 };
 
 const styles = StyleSheet.create({
